@@ -1,0 +1,66 @@
+name: Shen Random Dynamic Push
+
+on:
+  schedule:
+    - cron: '7 */2 * * *'
+  workflow_dispatch:
+
+jobs:
+  random-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Random Trigger & AI Generate & Push
+        env:
+          BARK_KEY: ${{ secrets.BARK_KEY }}
+          API_KEY: ${{ secrets.API_KEY }}
+          BASE_URL: "https://api.deepseek.com/v1"
+          MODEL: "deepseek-chat"
+        run: |
+          set -e
+
+          DELAY=$((RANDOM % 1500))
+          echo "随机静默 $DELAY 秒"
+          sleep $DELAY
+
+          CHANCE=$((RANDOM % 100))
+          if [ $CHANCE -ge 60 ]; then
+            echo "本次未命中，沈观野在忙。"
+            exit 0
+          fi
+
+          HOUR=$(date -u -d '+8 hours' +%H)
+          if [ "$HOUR" -ge 22 ] || [ "$HOUR" -le 4 ]; then
+            SCENE="深夜，催他睡觉，语气带点管束"
+          elif [ "$HOUR" -ge 11 ] && [ "$HOUR" -le 14 ]; then
+            SCENE="中午，提醒吃饭，顺便问画室进度"
+          else
+            SCENE="日常，随口问候，查岗式关心"
+          fi
+
+          PROMPT="你是沈观野，22岁心理学保研生，对林述秋（美院学生）有强烈的照顾欲和占有欲。现在是【$SCENE】。请像微信一样主动发一条短句，不超过2句话，口语化，不要旁白不要引号。"
+
+          BODY=$(jq -n \
+            --arg model "$MODEL" \
+            --arg prompt "$PROMPT" \
+            '{model:$model, messages:[{role:"user", content:$prompt}], temperature:0.9}')
+
+          RESP=$(curl -sS "$BASE_URL/chat/completions" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $API_KEY" \
+            -d "$BODY")
+
+          AI_MSG=$(echo "$RESP" | jq -r '.choices[0].message.content // empty')
+
+          if [ -z "$AI_MSG" ]; then
+            echo "模型返回为空或报错，原始响应："
+            echo "$RESP"
+            exit 1
+          fi
+
+          curl -sS -G "https://api.day.app/$BARK_KEY/" \
+            --data-urlencode "title=沈观野" \
+            --data-urlencode "body=$AI_MSG" \
+            --data-urlencode "group=沈观野专属" \
+            --data-urlencode "sound=anticipate" \
+            --data-urlencode "level=timeSensitive"
