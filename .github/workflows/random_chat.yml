@@ -19,7 +19,7 @@ jobs:
         run: |
           set -e
 
-          DELAY=$((RANDOM % 1500))
+          DELAY=$((RANDOM % 300))
           echo "随机静默 $DELAY 秒"
           sleep $DELAY
 
